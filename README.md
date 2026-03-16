@@ -7,7 +7,7 @@
 ## 工作原理
 
 ```
-用户: /sat:iterate --req 需求文档.md --platforms server,web
+用户: /sat:start --req 需求文档.md --platforms server,web
 
 SKILL.md (编排器) ─── Claude Code 自身作为调度器
     │
@@ -70,16 +70,16 @@ claude plugin enable sat@local
 ### 3. 执行迭代
 
 ```bash
-/sat:iterate --req requirements/ITER-001.md --platforms server,web
+/sat:start --req requirements/ITER-001.md --platforms server,web
 ```
 
 ## 目录结构
 
 ```
-SuperAgentTeam1/
+SuperAgentTeam/
 ├── .claude-plugin/plugin.json    # 插件元数据
 ├── sat-config.json               # 项目配置
-├── skills/iterate/SKILL.md       # 编排器（唯一入口）
+├── skills/start/SKILL.md         # 编排器（唯一入口）
 ├── agents/                       # Agent 提示词模板
 │   ├── product/                  # 需求分析团队 (4)
 │   ├── research/                 # 信息采集团队 (2)

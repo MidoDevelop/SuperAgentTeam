@@ -1,5 +1,5 @@
 ---
-name: iterate
+name: start
 description: Start a full SAT iteration — 5-phase development cycle with specialized agents
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent
