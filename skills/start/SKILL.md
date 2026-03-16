@@ -2,15 +2,15 @@
 name: start
 description: 启动 SAT 全迭代流程 — 自动检测当前目录下的需求文档并执行 5 阶段开发
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, TeamCreate, TeamDelete, TaskCreate, TaskList, TaskUpdate, TaskGet, SendMessage
 argument-hint: ""
 ---
 
 # SAT 全迭代编排器
 
-你是 SAT（SuperAgentTeam）的迭代调度器。你的职责是协调 5 个阶段的开发流程，通过 Agent tool 启动专职子 Agent 来完成每个阶段的工作。
+你是 SAT（SuperAgentTeam）的迭代调度器。你的职责是协调 5 个阶段的开发流程，通过 Team + Agent tool 启动专职团队成员来完成每个阶段的工作。
 
-**核心原则：你自己不做具体分析/设计/编码工作，你只负责编排和调度。所有实际工作由子 Agent 完成。**
+**核心原则：你自己不做具体分析/设计/编码工作，你只负责编排和调度。所有实际工作由团队成员完成。**
 
 **语言要求：所有面向用户的输出、阶段提示、确认询问均使用中文。**
 
@@ -82,6 +82,14 @@ argument-hint: ""
 确认开始？(Y/n)
 ```
 
+### 1.6 创建团队
+
+用户确认后，使用 `TeamCreate` 创建迭代团队：
+- `team_name`: `"sat-iteration"`
+- `description`: `"SAT 迭代: {需求文档名}"`
+
+你（编排器）即团队 Lead，负责创建任务、分配工作、监控进度。
+
 ---
 
 ## Step 2: 阶段一 — 需求分析
@@ -90,37 +98,52 @@ argument-hint: ""
 
 **目标**: 从用户、技术、风险三个视角分析需求，最终形成结构化需求。
 
-### 2.1 并行启动 3 个分析 Agent
+### 2.1 创建任务 & 并行启动 3 个分析成员
 
-使用 Agent tool **并行**启动 3 个子 Agent。每个 Agent 的 prompt 从 `${CLAUDE_PLUGIN_ROOT}/agents/product/` 目录读取对应模板文件，**将以下上下文注入 prompt**：
+**创建任务**（使用 TaskCreate，一次创建 3 个）：
+1. `用户视角分析` — 从用户体验角度分析需求
+2. `技术可行性评估` — 扫描代码评估技术可行性
+3. `风险分析` — 从多维度评估风险
 
+**启动团队成员**（使用 Agent tool + `team_name: "sat-iteration"`，**并行**启动 3 个）：
+
+每个成员的 prompt 从 `${CLAUDE_PLUGIN_ROOT}/agents/product/` 目录读取对应模板文件，**将以下上下文注入 prompt**：
 - 需求文档全文
 - 涉及平台列表
 - 各平台项目路径
 - 设计原则
+- 所属团队名: `sat-iteration`
 
-**Agent 1: 用户视角分析**
+**成员 1: 用户视角分析**
+- `name: "user-perspective"`
 - 读取 `agents/product/user-perspective.md` 作为 prompt 基础
 - 输出写入: `{output_dir}/阶段1-需求分析/用户视角分析.md`
+- 完成后用 TaskUpdate 标记任务完成
 
-**Agent 2: 技术可行性评估**
+**成员 2: 技术可行性评估**
+- `name: "tech-assessment"`
 - 读取 `agents/product/tech-assessment.md` 作为 prompt 基础
-- 该 Agent 需要扫描各端项目代码来评估技术可行性
+- 该成员需要扫描各端项目代码来评估技术可行性
 - 输出写入: `{output_dir}/阶段1-需求分析/技术可行性评估.md`
+- 完成后用 TaskUpdate 标记任务完成
 
-**Agent 3: 风险分析**
+**成员 3: 风险分析**
+- `name: "risk-analysis"`
 - 读取 `agents/product/risk-analysis.md` 作为 prompt 基础
 - 输出写入: `{output_dir}/阶段1-需求分析/风险分析.md`
+- 完成后用 TaskUpdate 标记任务完成
+
+**等待**: 等所有 3 个成员完成任务（通过 TaskList 检查或等待 idle 通知），然后向所有成员发送 `shutdown_request`。
 
 ### 2.2 汇总评审
 
-等 3 个 Agent 全部完成后，向用户输出：`需求三维分析完成，启动评审汇总...`
+向用户输出：`需求三维分析完成，启动评审汇总...`
 
-启动第 4 个 Agent：
+启动单个 Agent（普通 Agent tool，无需 team）：
 
-**Agent 4: 需求评审**
+**Agent: 需求评审**
 - 读取 `agents/product/requirement-review.md` 作为 prompt 基础
-- 注入上下文: 需求文档 + 上面 3 个 Agent 的输出
+- 注入上下文: 需求文档 + 上面 3 个成员的输出文件
 - 输出写入: `{output_dir}/阶段1-需求分析/需求评审.md`
 - 输出必须包含: 结构化需求清单、优先级排序、验收标准
 
@@ -147,31 +170,43 @@ argument-hint: ""
 
 **目标**: 扫描各端代码库，收集与需求相关的技术上下文。
 
-### 3.1 并行启动采集 Agent
+### 3.1 创建任务 & 并行启动采集成员
 
-**并行**启动以下所有 Agent：
+**创建任务**（TaskCreate）：
+- 每个涉及平台一个: `{platform}-代码扫描`
+- `文档知识采集`
+- `技术调研`
 
-**Agent: 代码扫描器**（per platform，每个涉及平台一个）
+**启动团队成员**（Agent tool + `team_name: "sat-iteration"`，**并行**启动所有）：
+
+**成员: 代码扫描器**（per platform，每个涉及平台一个）
+- `name: "{platform}-scanner"`
 - 读取 `agents/research/code-scanner.md` 作为 prompt 基础
 - 注入: 需求评审结果 + 该平台的项目路径
 - 工作: 用 Glob/Grep/Read 扫描代码库，找到相关文件、API、数据模型
 - 输出写入: `{output_dir}/阶段2-信息采集/{platform}-代码扫描.md`
 
-**Agent: 文档知识**
+**成员: 文档知识**
+- `name: "doc-knowledge"`
 - 读取 `agents/research/doc-knowledge.md` 作为 prompt 基础
 - 注入: 需求评审结果 + 各平台项目路径
 - 工作: 搜索各端 README、文档目录、CLAUDE.md、API 文档、变更日志
 - 输出写入: `{output_dir}/阶段2-信息采集/文档知识.md`
 
-**Agent: Web 搜索**
+**成员: Web 搜索**
+- `name: "web-searcher"`
 - 读取 `agents/research/web-searcher.md` 作为 prompt 基础
 - 注入: 需求评审结果 + 技术可行性评估
 - 工作: 搜索技术方案、最佳实践、框架文档
 - 输出写入: `{output_dir}/阶段2-信息采集/技术调研.md`
 
+**等待**: 等所有成员完成任务，然后发送 `shutdown_request`。
+
 ### 3.2 信息整合
 
-等所有采集 Agent 完成后，向用户输出：`信息采集完成，启动信息整合...`
+向用户输出：`信息采集完成，启动信息整合...`
+
+启动单个 Agent（普通 Agent tool）：
 
 **Agent: 信息整合器**
 - 读取 `agents/research/info-integrator.md` 作为 prompt 基础
@@ -195,25 +230,35 @@ argument-hint: ""
 - 输出写入: `{output_dir}/阶段3-架构设计/架构设计.md`
 - 输出包含: 架构概述、模块划分、跨端交互、数据模型设计
 
-### 4.2 并行启动各端设计 + API 契约
+### 4.2 创建任务 & 并行启动各端设计 + API 契约
 
 等架构师完成后，向用户输出：`架构设计完成，启动各端方案设计...`
 
-**并行**启动：
+**创建任务**（TaskCreate）：
+- 每个涉及平台一个: `{platform}-技术方案设计`
+- `API 契约设计`
 
-**Agent: 平台设计师**（per platform）
+**启动团队成员**（Agent tool + `team_name: "sat-iteration"`，**并行**启动所有）：
+
+**成员: 平台设计师**（per platform）
+- `name: "{platform}-designer"`
 - 读取 `agents/design/platform-designer.md` 作为 prompt 基础
 - 注入: 架构设计 + 该平台代码扫描结果 + 设计原则
 - 输出写入: `{output_dir}/阶段3-架构设计/{platform}-技术方案.md`
 
-**Agent: API 契约设计**
+**成员: API 契约设计**
+- `name: "api-contract"`
 - 读取 `agents/design/api-contract.md` 作为 prompt 基础
 - 注入: 架构设计 + 需求评审结果
 - 输出写入: `{output_dir}/阶段3-架构设计/接口契约.md`
 
+**等待**: 等所有成员完成任务，然后发送 `shutdown_request`。
+
 ### 4.3 设计评审
 
-等所有设计完成后，向用户输出：`各端方案设计完成，启动设计评审...`
+向用户输出：`各端方案设计完成，启动设计评审...`
+
+启动单个 Agent（普通 Agent tool）：
 
 **Agent: 方案审核**
 - 读取 `agents/design/design-reviewer.md` 作为 prompt 基础
@@ -244,19 +289,28 @@ argument-hint: ""
 
 **目标**: 按设计方案在各端项目中实际编写代码。
 
-### 5.1 并行启动各端开发 Agent
+### 5.1 创建任务 & 并行启动各端开发成员
 
-对每个涉及平台，启动一个 Agent：
+**创建任务**（TaskCreate）：
+- 每个涉及平台一个: `{platform}-编码开发`
 
-**Agent: 开发者**（per platform）
+**启动团队成员**（Agent tool + `team_name: "sat-iteration"`，**并行**启动）：
+
+**成员: 开发者**（per platform）
+- `name: "{platform}-developer"`
+- `mode: "auto"`（需要自由读写代码）
 - 读取 `agents/development/developer.md` 作为 prompt 基础
 - 注入: 该平台设计文档 + API 契约 + 该平台代码扫描结果 + 设计原则
-- **关键**: 该 Agent 使用 Edit/Write/Bash 在实际项目目录中编写代码
+- **关键**: 该成员使用 Edit/Write/Bash 在实际项目目录中编写代码
 - 输出写入: `{output_dir}/阶段4-编码开发/{platform}-变更记录.md`
+
+**等待**: 等所有成员完成任务，然后发送 `shutdown_request`。
 
 ### 5.2 代码审查
 
-等所有开发完成后，向用户输出：`各端开发完成，启动代码审查...`
+向用户输出：`各端开发完成，启动代码审查...`
+
+启动单个 Agent（普通 Agent tool）：
 
 **Agent: 代码审查**
 - 读取 `agents/development/code-reviewer.md` 作为 prompt 基础
@@ -286,19 +340,30 @@ argument-hint: ""
 - 注入: 需求验收标准 + API 契约 + 各端变更记录
 - 输出写入: `{output_dir}/阶段5-测试验证/测试用例.md`
 
-### 6.2 并行启动各端测试 Agent
+### 6.2 创建任务 & 并行启动各端测试成员
 
 向用户输出：`测试用例生成完成，启动各端测试...`
 
-**Agent: 测试执行者**（per platform）
+**创建任务**（TaskCreate）：
+- 每个涉及平台一个: `{platform}-测试执行`
+
+**启动团队成员**（Agent tool + `team_name: "sat-iteration"`，**并行**启动）：
+
+**成员: 测试执行者**（per platform）
+- `name: "{platform}-tester"`
+- `mode: "auto"`（需要运行测试命令）
 - 读取 `agents/testing/tester.md` 作为 prompt 基础
 - 注入: 测试用例 + 该平台变更记录
-- **关键**: 该 Agent 使用 Bash 在实际项目中运行测试
+- **关键**: 该成员使用 Bash 在实际项目中运行测试
 - 输出写入: `{output_dir}/阶段5-测试验证/{platform}-测试结果.md`
+
+**等待**: 等所有成员完成任务，然后发送 `shutdown_request`。
 
 ### 6.3 联合检查
 
-等所有测试完成后，向用户输出：`各端测试完成，启动联合检查...`
+向用户输出：`各端测试完成，启动联合检查...`
+
+启动单个 Agent（普通 Agent tool）：
 
 **Agent: 联合检查员**
 - 读取 `agents/testing/joint-inspector.md` 作为 prompt 基础
@@ -307,9 +372,11 @@ argument-hint: ""
 
 ---
 
-## Step 7: 迭代总结
+## Step 7: 迭代总结 & 团队清理
 
 所有阶段完成后：
+
+### 7.1 生成总结
 1. 生成迭代总结文档 `{output_dir}/迭代总结.md`
 2. 向用户报告：
    ```
@@ -331,21 +398,34 @@ argument-hint: ""
    详情请查看「迭代总结.md」
    ```
 
+### 7.2 清理团队
+使用 `TeamDelete` 清理团队资源。
+
 ---
 
 ## 阶段间监督检查（每个阶段完成后执行）
 
-每个阶段的主要工作完成后、HITL 检查点之前，**并行**启动两个监督 Agent：
+每个阶段的主要工作完成后、HITL 检查点之前，**并行**启动两个监督成员（Team 模式）：
 
-**Agent: 质量监督**
+**创建任务**（TaskCreate）：
+1. `{当前阶段}-质量审查`
+2. `{当前阶段}-风险监控`
+
+**启动团队成员**（Agent tool + `team_name: "sat-iteration"`，**并行**启动 2 个）：
+
+**成员: 质量监督**
+- `name: "quality-reviewer"`
 - 读取 `agents/supervision/quality-review.md` 作为 prompt 基础
 - 注入: 当前阶段名称 + 当前阶段所有产出 + 前序阶段摘要
 - 输出写入: `{output_dir}/{当前阶段目录}/质量审查.md`
 
-**Agent: 风险监控**
+**成员: 风险监控**
+- `name: "risk-monitor"`
 - 读取 `agents/supervision/risk-monitor.md` 作为 prompt 基础
 - 注入: 当前阶段名称 + 当前阶段所有产出 + 阶段一的风险分析 + 前序阶段的风险更新
 - 输出写入: `{output_dir}/{当前阶段目录}/风险监控.md`
+
+**等待**: 等两个成员完成，然后发送 `shutdown_request`。
 
 **处理逻辑**:
 - 质量评估为「通过」且风险等级为「低/中」→ 继续流程
@@ -372,20 +452,36 @@ argument-hint: ""
 
 ## Agent 启动规范
 
-启动每个 Agent 时使用以下模式：
+### 团队成员（并行工作，分窗口显示）
+
+用于所有**并行**工作的场景。启动流程：
+
+```
+1. 使用 TaskCreate 为每个并行工作创建任务
+2. 读取 agent prompt 模板文件
+3. 将上下文信息（需求、前序输出、项目路径、设计原则等）组装进 prompt
+4. 在 prompt 中告知成员：所属团队名、任务名、输出文件路径，以及完成后用 TaskUpdate 标记任务完成
+5. 使用 Agent tool 启动，指定 team_name: "sat-iteration" 和 name
+6. 同一步骤中所有独立成员必须在同一条消息中并行启动
+7. 等待所有成员完成（通过 TaskList 检查任务状态或等待 idle 通知）
+8. 向所有完成的成员发送 shutdown_request（SendMessage type: "shutdown_request"）
+```
+
+### 单独 Agent（顺序工作，无需分窗口）
+
+用于汇总/评审等单一顺序工作。启动流程：
 
 ```
 1. 读取 agent prompt 模板文件
-2. 将上下文信息（需求、前序输出、项目路径、设计原则等）组装进 prompt
-3. 使用 Agent tool 启动，指定 subagent_type 和 mode
-4. 等待结果（或并行等待多个结果）
+2. 将上下文信息组装进 prompt
+3. 使用 Agent tool 启动（不指定 team_name）
+4. 等待结果
 5. 检查输出文件是否已写入
 ```
 
-**并行启动**: 同一步骤中互相独立的 Agent 必须用同一条消息的多个 Agent tool 调用并行启动。
+### 成员配置
 
-**子 Agent 配置**:
-- 分析/设计类 Agent: `mode: "default"`, `model: "sonnet"` 或 `model: "opus"`
-- 开发类 Agent: `mode: "auto"`（需要自由读写代码）
-- 测试类 Agent: `mode: "auto"`（需要运行测试命令）
-- 代码扫描 Agent: `subagent_type: "Explore"`（利用 Explore agent 的搜索能力）
+- 分析/设计类: `mode: "default"`, `model: "sonnet"` 或 `model: "opus"`
+- 开发类: `mode: "auto"`（需要自由读写代码）
+- 测试类: `mode: "auto"`（需要运行测试命令）
+- 代码扫描: `subagent_type: "Explore"`（利用 Explore agent 的搜索能力）
