@@ -113,25 +113,37 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 
 **目标**: 扫描各端代码库，收集与需求相关的技术上下文。
 
-### 3.1 并行启动代码扫描 Agent（每个涉及平台一个）
+### 3.1 并行启动采集 Agent
 
-对每个涉及平台，启动一个 Agent：
+**并行**启动以下所有 Agent：
 
-**Agent: 代码扫描器**（per platform）
+**Agent: 代码扫描器**（per platform，每个涉及平台一个）
 - 读取 `agents/research/code-scanner.md` 作为 prompt 基础
 - 注入: 需求评审结果 + 该平台的项目路径
 - 工作: 用 Glob/Grep/Read 扫描代码库，找到相关文件、API、数据模型
 - 输出写入: `{output_dir}/{iter_id}/阶段2-信息采集/{platform}-代码扫描.md`
 
+**Agent: 文档知识**
+- 读取 `agents/research/doc-knowledge.md` 作为 prompt 基础
+- 注入: 需求评审结果 + 各平台项目路径
+- 工作: 搜索各端 README、文档目录、CLAUDE.md、API 文档、变更日志
+- 输出写入: `{output_dir}/{iter_id}/阶段2-信息采集/文档知识.md`
+
+**Agent: Web 搜索**
+- 读取 `agents/research/web-searcher.md` 作为 prompt 基础
+- 注入: 需求评审结果 + 技术可行性评估
+- 工作: 搜索技术方案、最佳实践、框架文档
+- 输出写入: `{output_dir}/{iter_id}/阶段2-信息采集/技术调研.md`
+
 ### 3.2 信息整合
 
-等所有平台扫描完成后，向用户输出：`各端代码扫描完成，启动信息整合...`
+等所有采集 Agent 完成后，向用户输出：`信息采集完成，启动信息整合...`
 
 **Agent: 信息整合器**
 - 读取 `agents/research/info-integrator.md` 作为 prompt 基础
-- 注入: 需求评审结果 + 所有平台的扫描结果
+- 注入: 需求评审结果 + 所有扫描结果 + 文档知识 + 技术调研
 - 输出写入: `{output_dir}/{iter_id}/阶段2-信息采集/信息整合.md`
-- 输出必须包含: 各端相关代码清单、现有 API 清单、数据模型现状、技术约束
+- 输出必须包含: 各端相关代码清单、现有 API 清单、数据模型现状、技术约束、外部参考
 
 ---
 
@@ -284,6 +296,37 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 
    详情请查看「迭代总结.md」
    ```
+
+---
+
+## 阶段间监督检查（每个阶段完成后执行）
+
+每个阶段的主要工作完成后、HITL 检查点之前，**并行**启动两个监督 Agent：
+
+**Agent: 质量监督**
+- 读取 `agents/supervision/quality-review.md` 作为 prompt 基础
+- 注入: 当前阶段名称 + 当前阶段所有产出 + 前序阶段摘要
+- 输出写入: `{output_dir}/{iter_id}/{当前阶段目录}/质量审查.md`
+
+**Agent: 风险监控**
+- 读取 `agents/supervision/risk-monitor.md` 作为 prompt 基础
+- 注入: 当前阶段名称 + 当前阶段所有产出 + 阶段一的风险分析 + 前序阶段的风险更新
+- 输出写入: `{output_dir}/{iter_id}/{当前阶段目录}/风险监控.md`
+
+**处理逻辑**:
+- 质量评估为「通过」且风险等级为「低/中」→ 继续流程
+- 质量评估为「警告」或风险等级为「高」→ 向用户提示警告信息，由用户决定继续或修正
+- 质量评估为「阻塞」或风险等级为「严重」→ 暂停流程，向用户报告：
+  ```
+  ⚠ 监督检查未通过
+  质量评分: {score} — {结论}
+  风险等级: {等级}
+
+  问题:
+  {问题清单}
+
+  请选择: 修正后重跑本阶段 / 忽略继续 / 中止迭代
+  ```
 
 ---
 

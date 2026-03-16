@@ -43,7 +43,7 @@ SKILL.md (编排器) ─── Claude Code 自身作为调度器
 | 工具调用 | 自研 ToolRegistry 代理 | Claude Code 原生工具 |
 | 代码操作 | 间接（通过 LLM 生成代码文本） | 直接 Read/Write/Edit 真实文件 |
 | 测试执行 | 模拟输出 | Bash 真实运行 |
-| 文件数量 | ~50 个 Python 文件 | 15 个 Prompt 模板 |
+| 文件数量 | ~50 个 Python 文件 | 19 个 Prompt 模板 |
 
 ## 快速开始
 
@@ -82,10 +82,11 @@ SuperAgentTeam/
 ├── skills/start/SKILL.md         # 编排器（唯一入口）
 ├── agents/                       # Agent 提示词模板
 │   ├── product/                  # 需求分析团队 (4)
-│   ├── research/                 # 信息采集团队 (2)
+│   ├── research/                 # 信息采集团队 (4)
 │   ├── design/                   # 架构设计团队 (4)
 │   ├── development/              # 编码开发团队 (2)
-│   └── testing/                  # 测试验证团队 (3)
+│   ├── testing/                  # 测试验证团队 (3)
+│   └── supervision/              # 监督团队 (2)
 ├── templates/requirement.md      # 需求文档模板
 └── output/                       # 迭代输出目录
     └── iter-YYYYMMDD-HHMM/
