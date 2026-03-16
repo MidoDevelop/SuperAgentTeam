@@ -1,9 +1,9 @@
 ---
 name: start
-description: 启动 SAT 全迭代流程 — 需求分析 → 信息采集 → 架构设计 → 编码开发 → 测试验证
+description: 启动 SAT 全迭代流程 — 自动检测当前目录下的需求文档并执行 5 阶段开发
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent
-argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--server /path] [--web /path] [--ios /path] [--android /path]"
+argument-hint: ""
 ---
 
 # SAT 全迭代编排器
@@ -16,37 +16,71 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 
 ---
 
-## Step 1: 解析输入 & 加载配置
+## Step 1: 自动检测 & 加载配置
 
-1. 解析用户命令参数：
-   - `--req <path>`: 需求文档路径（必需）
-   - `--platforms <list>`: 涉及平台（逗号分隔，如 server,web）
-   - `--server/--web/--ios/--android <path>`: 各端项目路径（覆盖配置）
+### 1.1 检测需求文档
 
-2. 读取 sat-config.json（在插件根目录 `${CLAUDE_PLUGIN_ROOT}/sat-config.json`，如无则读当前目录的）：
-   - `projects`: 各端项目路径
-   - `design_principles`: 设计原则
-   - `hitl.checkpoints`: HITL 检查点阶段
-   - `output_dir`: 输出目录
+在**当前工作目录**下搜索以 `requirement.md` 结尾的文件（如 `用户资料编辑-requirement.md`、`requirement.md` 等）：
 
-3. 读取需求文档内容（`--req` 指定的文件）
+- 使用 Glob 搜索模式: `*requirement.md`
+- 如果找到**1 个**：自动使用该文件
+- 如果找到**多个**：列出所有找到的文件，让用户选择
+- 如果找到**0 个**：提示用户 `当前目录下未找到需求文档（*requirement.md），请确认工作目录是否正确。` 并终止
 
-4. 确定涉及平台：命令行参数 > 需求文档中的"涉及端" > 默认全部
+### 1.2 读取需求文档
 
-5. 创建迭代输出目录：`{output_dir}/{iteration_id}/`，iteration_id 格式为 `iter-YYYYMMDD-HHMM`
+1. 读取需求文档全文
+2. 从文档中提取：
+   - **涉及平台**: 从文档头部的「涉及端」字段解析（如 `Server / Web`）
+   - **附件清单**: 从文档的「附件清单」章节提取附件文件名列表
+3. 读取附件：**仅读取「附件清单」中明确列出的文件**，附件与需求文档在同一目录下。未在附件清单中注明的文件一律不读取。
 
-6. 向用户展示并确认：
-   ```
-   === SAT 迭代启动 ===
-   需求文档: xxx.md
-   涉及平台: server, web
-   项目路径:
-     - server: /path/to/server
-     - web: /path/to/web
-   输出目录: output/iter-20260316-2100/
+### 1.3 加载配置
 
-   确认开始？(Y/n)
-   ```
+读取 sat-config.json（在插件根目录 `${CLAUDE_PLUGIN_ROOT}/sat-config.json`，如无则读当前目录的）：
+- `projects`: 各端项目路径
+- `design_principles`: 设计原则
+- `hitl.checkpoints`: HITL 检查点阶段
+
+**如果配置中某个涉及平台的项目路径为空**，提示用户并终止：
+```
+缺少项目路径配置。请在 sat-config.json 中配置以下平台的项目路径:
+  - server: (未配置)
+  - web: (未配置)
+```
+
+### 1.4 确定输出目录
+
+**所有输出文档与需求文档在同一目录下**，按阶段创建子目录：
+```
+{需求文档所在目录}/
+├── xxx-requirement.md          ← 需求文档（已存在）
+├── 附件1.png                   ← 附件（已存在）
+├── 阶段1-需求分析/              ← 输出
+├── 阶段2-信息采集/
+├── 阶段3-架构设计/
+├── 阶段4-编码开发/
+├── 阶段5-测试验证/
+└── 迭代总结.md
+```
+
+以下所有输出路径中的 `{output_dir}` 均指**需求文档所在目录**。
+
+### 1.5 确认启动
+
+向用户展示：
+```
+=== SAT 迭代启动 ===
+需求文档: {文件名}
+涉及平台: {从文档解析的平台}
+项目路径:
+  - server: /path/to/server
+  - web: /path/to/web
+附件: {附件清单，或「无」}
+输出目录: {需求文档所在目录}
+
+确认开始？(Y/n)
+```
 
 ---
 
@@ -67,16 +101,16 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 
 **Agent 1: 用户视角分析**
 - 读取 `agents/product/user-perspective.md` 作为 prompt 基础
-- 输出写入: `{output_dir}/{iter_id}/阶段1-需求分析/用户视角分析.md`
+- 输出写入: `{output_dir}/阶段1-需求分析/用户视角分析.md`
 
 **Agent 2: 技术可行性评估**
 - 读取 `agents/product/tech-assessment.md` 作为 prompt 基础
 - 该 Agent 需要扫描各端项目代码来评估技术可行性
-- 输出写入: `{output_dir}/{iter_id}/阶段1-需求分析/技术可行性评估.md`
+- 输出写入: `{output_dir}/阶段1-需求分析/技术可行性评估.md`
 
 **Agent 3: 风险分析**
 - 读取 `agents/product/risk-analysis.md` 作为 prompt 基础
-- 输出写入: `{output_dir}/{iter_id}/阶段1-需求分析/风险分析.md`
+- 输出写入: `{output_dir}/阶段1-需求分析/风险分析.md`
 
 ### 2.2 汇总评审
 
@@ -87,7 +121,7 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 **Agent 4: 需求评审**
 - 读取 `agents/product/requirement-review.md` 作为 prompt 基础
 - 注入上下文: 需求文档 + 上面 3 个 Agent 的输出
-- 输出写入: `{output_dir}/{iter_id}/阶段1-需求分析/需求评审.md`
+- 输出写入: `{output_dir}/阶段1-需求分析/需求评审.md`
 - 输出必须包含: 结构化需求清单、优先级排序、验收标准
 
 ### 2.3 HITL 检查点
@@ -121,19 +155,19 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 - 读取 `agents/research/code-scanner.md` 作为 prompt 基础
 - 注入: 需求评审结果 + 该平台的项目路径
 - 工作: 用 Glob/Grep/Read 扫描代码库，找到相关文件、API、数据模型
-- 输出写入: `{output_dir}/{iter_id}/阶段2-信息采集/{platform}-代码扫描.md`
+- 输出写入: `{output_dir}/阶段2-信息采集/{platform}-代码扫描.md`
 
 **Agent: 文档知识**
 - 读取 `agents/research/doc-knowledge.md` 作为 prompt 基础
 - 注入: 需求评审结果 + 各平台项目路径
 - 工作: 搜索各端 README、文档目录、CLAUDE.md、API 文档、变更日志
-- 输出写入: `{output_dir}/{iter_id}/阶段2-信息采集/文档知识.md`
+- 输出写入: `{output_dir}/阶段2-信息采集/文档知识.md`
 
 **Agent: Web 搜索**
 - 读取 `agents/research/web-searcher.md` 作为 prompt 基础
 - 注入: 需求评审结果 + 技术可行性评估
 - 工作: 搜索技术方案、最佳实践、框架文档
-- 输出写入: `{output_dir}/{iter_id}/阶段2-信息采集/技术调研.md`
+- 输出写入: `{output_dir}/阶段2-信息采集/技术调研.md`
 
 ### 3.2 信息整合
 
@@ -142,7 +176,7 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 **Agent: 信息整合器**
 - 读取 `agents/research/info-integrator.md` 作为 prompt 基础
 - 注入: 需求评审结果 + 所有扫描结果 + 文档知识 + 技术调研
-- 输出写入: `{output_dir}/{iter_id}/阶段2-信息采集/信息整合.md`
+- 输出写入: `{output_dir}/阶段2-信息采集/信息整合.md`
 - 输出必须包含: 各端相关代码清单、现有 API 清单、数据模型现状、技术约束、外部参考
 
 ---
@@ -158,7 +192,7 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 **Agent: 架构师**
 - 读取 `agents/design/architect.md` 作为 prompt 基础
 - 注入: 需求评审结果 + 信息采集摘要 + 设计原则
-- 输出写入: `{output_dir}/{iter_id}/阶段3-架构设计/架构设计.md`
+- 输出写入: `{output_dir}/阶段3-架构设计/架构设计.md`
 - 输出包含: 架构概述、模块划分、跨端交互、数据模型设计
 
 ### 4.2 并行启动各端设计 + API 契约
@@ -170,12 +204,12 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 **Agent: 平台设计师**（per platform）
 - 读取 `agents/design/platform-designer.md` 作为 prompt 基础
 - 注入: 架构设计 + 该平台代码扫描结果 + 设计原则
-- 输出写入: `{output_dir}/{iter_id}/阶段3-架构设计/{platform}-技术方案.md`
+- 输出写入: `{output_dir}/阶段3-架构设计/{platform}-技术方案.md`
 
 **Agent: API 契约设计**
 - 读取 `agents/design/api-contract.md` 作为 prompt 基础
 - 注入: 架构设计 + 需求评审结果
-- 输出写入: `{output_dir}/{iter_id}/阶段3-架构设计/接口契约.md`
+- 输出写入: `{output_dir}/阶段3-架构设计/接口契约.md`
 
 ### 4.3 设计评审
 
@@ -185,7 +219,7 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 - 读取 `agents/design/design-reviewer.md` 作为 prompt 基础
 - 注入: 所有设计文档 + 设计原则
 - 审核要点: 架构一致性、接口对齐、最小改动原则、向后兼容
-- 输出写入: `{output_dir}/{iter_id}/阶段3-架构设计/设计评审.md`
+- 输出写入: `{output_dir}/阶段3-架构设计/设计评审.md`
 
 ### 4.4 HITL 检查点
 
@@ -218,7 +252,7 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 - 读取 `agents/development/developer.md` 作为 prompt 基础
 - 注入: 该平台设计文档 + API 契约 + 该平台代码扫描结果 + 设计原则
 - **关键**: 该 Agent 使用 Edit/Write/Bash 在实际项目目录中编写代码
-- 输出写入: `{output_dir}/{iter_id}/阶段4-编码开发/{platform}-变更记录.md`
+- 输出写入: `{output_dir}/阶段4-编码开发/{platform}-变更记录.md`
 
 ### 5.2 代码审查
 
@@ -228,7 +262,7 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 - 读取 `agents/development/code-reviewer.md` 作为 prompt 基础
 - 注入: 各端变更记录 + 设计方案 + 设计原则
 - 工作: 用 Read/Grep 检查实际代码变更，对照设计方案审查
-- 输出写入: `{output_dir}/{iter_id}/阶段4-编码开发/代码审查.md`
+- 输出写入: `{output_dir}/阶段4-编码开发/代码审查.md`
 - 如发现 blocker 级别问题，向用户提示：
   ```
   ⚠ 代码审查发现阻塞性问题：
@@ -250,7 +284,7 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 **Agent: 测试用例生成器**
 - 读取 `agents/testing/test-case-generator.md` 作为 prompt 基础
 - 注入: 需求验收标准 + API 契约 + 各端变更记录
-- 输出写入: `{output_dir}/{iter_id}/阶段5-测试验证/测试用例.md`
+- 输出写入: `{output_dir}/阶段5-测试验证/测试用例.md`
 
 ### 6.2 并行启动各端测试 Agent
 
@@ -260,7 +294,7 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 - 读取 `agents/testing/tester.md` 作为 prompt 基础
 - 注入: 测试用例 + 该平台变更记录
 - **关键**: 该 Agent 使用 Bash 在实际项目中运行测试
-- 输出写入: `{output_dir}/{iter_id}/阶段5-测试验证/{platform}-测试结果.md`
+- 输出写入: `{output_dir}/阶段5-测试验证/{platform}-测试结果.md`
 
 ### 6.3 联合检查
 
@@ -269,18 +303,18 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 **Agent: 联合检查员**
 - 读取 `agents/testing/joint-inspector.md` 作为 prompt 基础
 - 注入: 所有测试结果 + 需求验收标准
-- 输出写入: `{output_dir}/{iter_id}/阶段5-测试验证/联合检查.md`
+- 输出写入: `{output_dir}/阶段5-测试验证/联合检查.md`
 
 ---
 
 ## Step 7: 迭代总结
 
 所有阶段完成后：
-1. 生成迭代总结文档 `{output_dir}/{iter_id}/迭代总结.md`
+1. 生成迭代总结文档 `{output_dir}/迭代总结.md`
 2. 向用户报告：
    ```
    === 迭代完成 ===
-   迭代 ID: {iter_id}
+   需求文档: {需求文档名}
    涉及平台: {platforms}
 
    各阶段状态:
@@ -290,7 +324,7 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
      阶段四 编码开发: ✓ 审查通过
      阶段五 测试验证: ✓ 质量评分 {score}
 
-   输出文档: {output_dir}/{iter_id}/
+   输出目录: {output_dir}/
    变更文件: {变更文件数} 个
    遗留问题: {遗留问题数} 个
 
@@ -306,12 +340,12 @@ argument-hint: "--req <需求文档.md> [--platforms server,web,ios,android] [--
 **Agent: 质量监督**
 - 读取 `agents/supervision/quality-review.md` 作为 prompt 基础
 - 注入: 当前阶段名称 + 当前阶段所有产出 + 前序阶段摘要
-- 输出写入: `{output_dir}/{iter_id}/{当前阶段目录}/质量审查.md`
+- 输出写入: `{output_dir}/{当前阶段目录}/质量审查.md`
 
 **Agent: 风险监控**
 - 读取 `agents/supervision/risk-monitor.md` 作为 prompt 基础
 - 注入: 当前阶段名称 + 当前阶段所有产出 + 阶段一的风险分析 + 前序阶段的风险更新
-- 输出写入: `{output_dir}/{iter_id}/{当前阶段目录}/风险监控.md`
+- 输出写入: `{output_dir}/{当前阶段目录}/风险监控.md`
 
 **处理逻辑**:
 - 质量评估为「通过」且风险等级为「低/中」→ 继续流程

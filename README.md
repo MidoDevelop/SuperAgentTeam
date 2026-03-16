@@ -7,7 +7,7 @@
 ## 工作原理
 
 ```
-用户: /sat:start --req 需求文档.md --platforms server,web
+用户: /sat:start    ← 自动检测当前目录下的 *requirement.md
 
 SKILL.md (编排器) ─── Claude Code 自身作为调度器
     │
@@ -69,8 +69,33 @@ claude plugin enable sat@local
 
 ### 3. 执行迭代
 
+在包含需求文档的目录下执行：
+
 ```bash
-/sat:start --req requirements/ITER-001.md --platforms server,web
+# 当前目录下需存在 *requirement.md 文件
+/sat:start
+```
+
+框架会自动检测需求文档、从文档中解析涉及平台和附件清单，所有输出与需求文档同目录。
+
+### 输入约定
+
+- 需求文档命名以 `requirement.md` 结尾（如 `用户资料编辑-requirement.md`）
+- 附件与需求文档同目录，并在文档的「附件清单」章节注明
+- 涉及平台从文档头部的「涉及端」字段自动解析
+
+### 输出结构
+
+```
+当前工作目录/
+├── xxx-requirement.md           # 需求文档（已有）
+├── 附件.png                     # 附件（已有）
+├── 阶段1-需求分析/               # 输出
+├── 阶段2-信息采集/
+├── 阶段3-架构设计/
+├── 阶段4-编码开发/
+├── 阶段5-测试验证/
+└── 迭代总结.md
 ```
 
 ## 目录结构
@@ -87,15 +112,7 @@ SuperAgentTeam/
 │   ├── development/              # 编码开发团队 (2)
 │   ├── testing/                  # 测试验证团队 (3)
 │   └── supervision/              # 监督团队 (2)
-├── templates/requirement.md      # 需求文档模板
-└── output/                       # 迭代输出目录
-    └── iter-YYYYMMDD-HHMM/
-        ├── 阶段1-需求分析/
-        ├── 阶段2-信息采集/
-        ├── 阶段3-架构设计/
-        ├── 阶段4-编码开发/
-        ├── 阶段5-测试验证/
-        └── 迭代总结.md
+└── templates/requirement.md      # 需求文档模板
 ```
 
 ## 设计原则
