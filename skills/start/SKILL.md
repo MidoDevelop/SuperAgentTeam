@@ -117,23 +117,23 @@ argument-hint: ""
 **成员 1: 用户视角分析**
 - `name: "user-perspective"`
 - 读取 `agents/product/user-perspective.md` 作为 prompt 基础
-- 输出写入: `{output_dir}/阶段1-需求分析/用户视角分析.md`
+- **不写文件**，分析结果通过 Agent 返回值传递
 - 完成后用 TaskUpdate 标记任务完成
 
 **成员 2: 技术可行性评估**
 - `name: "tech-assessment"`
 - 读取 `agents/product/tech-assessment.md` 作为 prompt 基础
 - 该成员需要扫描各端项目代码来评估技术可行性
-- 输出写入: `{output_dir}/阶段1-需求分析/技术可行性评估.md`
+- **不写文件**，分析结果通过 Agent 返回值传递
 - 完成后用 TaskUpdate 标记任务完成
 
 **成员 3: 风险分析**
 - `name: "risk-analysis"`
 - 读取 `agents/product/risk-analysis.md` 作为 prompt 基础
-- 输出写入: `{output_dir}/阶段1-需求分析/风险分析.md`
+- **不写文件**，分析结果通过 Agent 返回值传递
 - 完成后用 TaskUpdate 标记任务完成
 
-**等待**: 等所有 3 个成员完成任务（通过 TaskList 检查或等待 idle 通知），然后向所有成员发送 `shutdown_request`。
+**等待**: 等所有 3 个成员完成任务（通过 TaskList 检查或等待 idle 通知），然后向所有成员发送 `shutdown_request`。收集 3 个成员的返回结果。
 
 ### 2.2 汇总评审
 
@@ -143,9 +143,9 @@ argument-hint: ""
 
 **Agent: 需求评审**
 - 读取 `agents/product/requirement-review.md` 作为 prompt 基础
-- 注入上下文: 需求文档 + 上面 3 个成员的输出文件
-- 输出写入: `{output_dir}/阶段1-需求分析/需求评审.md`
-- 输出必须包含: 结构化需求清单、优先级排序、验收标准
+- 注入上下文: 需求文档 + 上面 3 个成员的**返回结果**（内存传递，非文件）
+- 输出写入: `{output_dir}/阶段1-需求分析/需求评审.md`（阶段一唯一输出文件）
+- 输出必须包含: 三维分析要点、结构化需求清单、优先级排序、验收标准、风险摘要
 
 ### 2.3 HITL 检查点
 
@@ -417,15 +417,15 @@ argument-hint: ""
 - `name: "quality-reviewer"`
 - 读取 `agents/supervision/quality-review.md` 作为 prompt 基础
 - 注入: 当前阶段名称 + 当前阶段所有产出 + 前序阶段摘要
-- 输出写入: `{output_dir}/{当前阶段目录}/质量审查.md`
+- **不写文件**，审查结论通过 Agent 返回值传递
 
 **成员: 风险监控**
 - `name: "risk-monitor"`
 - 读取 `agents/supervision/risk-monitor.md` 作为 prompt 基础
 - 注入: 当前阶段名称 + 当前阶段所有产出 + 阶段一的风险分析 + 前序阶段的风险更新
-- 输出写入: `{output_dir}/{当前阶段目录}/风险监控.md`
+- **不写文件**，监控结论通过 Agent 返回值传递
 
-**等待**: 等两个成员完成，然后发送 `shutdown_request`。
+**等待**: 等两个成员完成，然后发送 `shutdown_request`。根据返回的结论执行处理逻辑。
 
 **处理逻辑**:
 - 质量评估为「通过」且风险等级为「低/中」→ 继续流程
