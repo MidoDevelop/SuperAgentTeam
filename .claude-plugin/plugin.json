@@ -1,0 +1,9 @@
+{
+  "name": "sat",
+  "version": "0.2.0",
+  "description": "Multi-Agent iterative development framework — powered by Claude Code Agent tool",
+  "author": {
+    "name": "Nick"
+  },
+  "license": "MIT"
+}

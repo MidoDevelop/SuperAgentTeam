@@ -1,0 +1,20 @@
+{
+  "design_principles": [
+    "最小改动原则：优先复用现有代码和接口，尽量少的改动，以系统稳定性为第一优先级",
+    "新增优于修改：能通过新增代码实现的功能，不修改已有稳定代码",
+    "向后兼容：接口变更必须兼容现有客户端"
+  ],
+
+  "projects": {
+    "server": "",
+    "web": "",
+    "ios": "",
+    "android": ""
+  },
+
+  "hitl": {
+    "checkpoints": ["requirement", "design"]
+  },
+
+  "output_dir": "output"
+}
