@@ -88,6 +88,13 @@ SuperAgentTeam/
 │   └── testing/                  # 测试验证团队 (3)
 ├── templates/requirement.md      # 需求文档模板
 └── output/                       # 迭代输出目录
+    └── iter-YYYYMMDD-HHMM/
+        ├── 阶段1-需求分析/
+        ├── 阶段2-信息采集/
+        ├── 阶段3-架构设计/
+        ├── 阶段4-编码开发/
+        ├── 阶段5-测试验证/
+        └── 迭代总结.md
 ```
 
 ## 设计原则
